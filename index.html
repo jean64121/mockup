@@ -15,14 +15,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
-        // Création de la scène, de la caméra et du renderer
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer();
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Ajouter une lumière directionnelle et une lumière ambiante
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(2, 2, 5);
         scene.add(light);
@@ -30,72 +28,74 @@
         const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
         scene.add(ambientLight);
 
-        // Couleur de fond de la scène
         scene.background = new THREE.Color(0xeeeeee);
 
-        // Groupe pivot pour centrer l'axe de rotation
         const pivot = new THREE.Group();
         scene.add(pivot);
 
-        // Chargement du modèle 3D
         const loader = new THREE.GLTFLoader();
-        loader.load(
-            './modele.glb', // Chemin relatif vers le modèle
-            (gltf) => {
-                const model = gltf.scene;
+        loader.load('./modele.glb', (gltf) => {
+            const model = gltf.scene;
+            const box = new THREE.Box3().setFromObject(model);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
 
-                // Calculer le centre et la taille du modèle
-                const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
+            model.position.set(-center.x, -center.y, -center.z);
+            pivot.add(model);
 
-                // Recentrer le modèle autour de son centre
-                model.position.set(-center.x, -center.y+0.04, -center.z);
-
-                // Ajouter le modèle au pivot
-                pivot.add(model);
-
-                // Ajuster la caméra pour centrer le modèle
-                const distance = Math.max(size.x, size.y, size.z) * 1; // Réduction de la distance pour rapprocher la caméra
-                camera.position.set(0, 0, distance);
-                camera.lookAt(new THREE.Vector3(0, 0, 0));
-            },
-            undefined,
-            (error) => {
-                alert('Impossible de charger le modèle. Veuillez vérifier le chemin ou le format du fichier.');
-                console.error('Erreur de chargement :', error);
-            }
-        );
-
-        // Gestion de la rotation avec la souris
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-
-        window.addEventListener('mousedown', (event) => {
-            isDragging = true;
-            previousMousePosition = { x: event.clientX, y: event.clientY };
+            const distance = Math.max(size.x, size.y, size.z) * 1;
+            camera.position.set(0, 0, distance);
+            camera.lookAt(new THREE.Vector3(0, 0, 0));
         });
-        window.addEventListener('mouseup', () => { isDragging = false; });
-        window.addEventListener('mousemove', (event) => {
+
+        let isDragging = false;
+        let previousPosition = { x: 0, y: 0 };
+
+        function startDrag(event) {
+            isDragging = true;
+            previousPosition = { 
+                x: event.touches ? event.touches[0].clientX : event.clientX, 
+                y: event.touches ? event.touches[0].clientY : event.clientY 
+            };
+        }
+
+        function endDrag() {
+            isDragging = false;
+        }
+
+        function drag(event) {
             if (isDragging) {
-                const deltaX = event.clientX - previousMousePosition.x;
-                const deltaY = event.clientY - previousMousePosition.y;
+                const currentPosition = { 
+                    x: event.touches ? event.touches[0].clientX : event.clientX, 
+                    y: event.touches ? event.touches[0].clientY : event.clientY 
+                };
+
+                const deltaX = currentPosition.x - previousPosition.x;
+                const deltaY = currentPosition.y - previousPosition.y;
 
                 pivot.rotation.y += deltaX * 0.005; // Rotation horizontale
                 pivot.rotation.x += deltaY * 0.005; // Rotation verticale
-                pivot.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pivot.rotation.x)); // Limiter la rotation verticale
+                pivot.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pivot.rotation.x)); 
 
-                previousMousePosition = { x: event.clientX, y: event.clientY };
+                previousPosition = currentPosition;
             }
-        });
+        }
 
-        // Animation de la scène
+        // Gestion des événements pour la souris
+        window.addEventListener('mousedown', startDrag);
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('mousemove', drag);
+
+        // Gestion des événements pour le tactile
+        window.addEventListener('touchstart', startDrag);
+        window.addEventListener('touchend', endDrag);
+        window.addEventListener('touchmove', drag);
+
         function animate() {
             requestAnimationFrame(animate);
             renderer.render(scene, camera);
         }
 
-        // Ajustement lors du redimensionnement de la fenêtre
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
