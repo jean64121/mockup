@@ -12,30 +12,50 @@
     </style>
 </head>
 <body>
+    <!-- Charger la bibliothèque Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Charger le loader GLTF pour les modèles 3D -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
+        // Créer la scène
         const scene = new THREE.Scene();
+
+        // Configurer la caméra
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
+
+        // Configurer le rendu avec antialiasing
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0xf0f0f0); // Fond presque blanc
         document.body.appendChild(renderer.domElement);
 
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(2, 2, 5);
-        scene.add(light);
+        // Fond de la scène
+        scene.background = new THREE.Color(0xf0f0f0);
 
-        const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+        // Ajouter une lumière directionnelle principale
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        directionalLight.position.set(1, 1, 5);
+        scene.add(directionalLight);
+
+        // Ajouter une lumière d'appoint pour équilibrer l'éclairage
+        const pointLight = new THREE.PointLight(0xffffff, 0.3, 100);
+        pointLight.position.set(0, 5, 5);
+        scene.add(pointLight);
+
+        // Ajouter une lumière ambiante douce
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.0);
         scene.add(ambientLight);
 
-        scene.background = new THREE.Color(0xeeeeee);
-
+        // Charger le modèle 3D
+        const loader = new THREE.GLTFLoader();
         const pivot = new THREE.Group();
         scene.add(pivot);
 
-        const loader = new THREE.GLTFLoader();
         loader.load('./modele.glb', (gltf) => {
             const model = gltf.scene;
+
+            // Calculer les dimensions du modèle pour recentrer
             const box = new THREE.Box3().setFromObject(model);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
@@ -43,11 +63,23 @@
             model.position.set(-center.x, -center.y, -center.z);
             pivot.add(model);
 
-            const distance = Math.max(size.x, size.y, size.z) * 1;
-            camera.position.set(0, 0, distance);
-            camera.lookAt(new THREE.Vector3(0, 0, 0));
+            // Améliorer les matériaux pour réduire les artefacts
+            model.traverse((node) => {
+                if (node.isMesh) {
+                    node.material.flatShading = false;
+                    node.material.metalness = 0.2;
+                    node.material.roughness = 0.8;
+                    node.material.needsUpdate = true;
+                }
+            });
+
+            // Incliner légèrement le modèle vers l'avant en ajustant la position de la caméra
+            const distance = Math.max(size.x, size.y, size.z) * 1.0;
+            camera.position.set(0, distance * 0.2, distance); // Inclinaison plus mesurée
+            camera.lookAt(new THREE.Vector3(0, 0, 0)); // Fixer la caméra sur la position du modèle
         });
 
+        // Gestion des interactions avec la souris (rotation horizontale seulement)
         let isDragging = false;
         let previousPosition = { x: 0, y: 0 };
 
@@ -71,31 +103,28 @@
                 };
 
                 const deltaX = currentPosition.x - previousPosition.x;
-                const deltaY = currentPosition.y - previousPosition.y;
 
-                pivot.rotation.y += deltaX * 0.005; // Rotation horizontale
-                pivot.rotation.x += deltaY * 0.005; // Rotation verticale
-                pivot.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pivot.rotation.x)); 
+                pivot.rotation.y += deltaX * 0.005; // Rotation horizontale uniquement
 
                 previousPosition = currentPosition;
             }
         }
 
-        // Gestion des événements pour la souris
+        // Événements souris et tactile
         window.addEventListener('mousedown', startDrag);
         window.addEventListener('mouseup', endDrag);
         window.addEventListener('mousemove', drag);
-
-        // Gestion des événements pour le tactile
         window.addEventListener('touchstart', startDrag);
         window.addEventListener('touchend', endDrag);
         window.addEventListener('touchmove', drag);
 
+        // Animation de la scène
         function animate() {
             requestAnimationFrame(animate);
             renderer.render(scene, camera);
         }
 
+        // Gestion du redimensionnement de la fenêtre
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
